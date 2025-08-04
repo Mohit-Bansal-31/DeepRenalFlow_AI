@@ -2,7 +2,7 @@ from DeepRenalFlow import logger
 from DeepRenalFlow.pipeline.stage_01_data_ingestion import DataIngestionTrainingPipeline
 from DeepRenalFlow.pipeline.stage_02_prepare_base_model import PrepareBaseModelTrainingPipeline
 from DeepRenalFlow.pipeline.stage_03_model_training import ModelTrainingPipeline
-
+from DeepRenalFlow.pipeline.stage_04_model_evaluation import EvaluationPipeline
 
 STAGE_NAME = "Data Ingestion Stage"
 try:
@@ -40,3 +40,19 @@ try:
 except Exception as e:
     logger.exception(e)
     raise e
+
+
+STAGE_NAME = 'Model Evaluation Stage'
+
+if __name__ =='__main__':
+    try:
+        logger.info(f"**************")
+        logger.info(f">>>>>>>>>> stage{STAGE_NAME} started <<<<<<<<<<<")
+        obj = EvaluationPipeline()
+        obj.main()
+        logger.info(f">>>>>>>>>> stage {STAGE_NAME} completed <<<<<<<<<<\n\nx=============x\n")
+        
+    except Exception as e:
+        logger.exception(e)
+        raise e
+
