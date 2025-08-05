@@ -5,6 +5,9 @@ import tensorflow as tf
 import time
 from pathlib import Path
 from DeepRenalFlow.entity.config_entity import TrainingConfig
+from sklearn.utils import class_weight
+import numpy as np
+tf.config.run_functions_eagerly(True)
 
 
 class Training:
@@ -12,8 +15,15 @@ class Training:
         self.config=config
         
         
+        
     def get_base_model(self):
         self.model = tf.keras.models.load_model(self.config.updated_base_model_path)
+        self.model.compile(
+            optimizer = tf.keras.optimizers.SGD(learning_rate = self.config.params_learning_rate),
+            loss = tf.keras.losses.CategoricalCrossentropy(),
+            metrics = ["accuracy"]
+        )
+
         
         
     def train_valid_generator(self):
@@ -72,12 +82,22 @@ class Training:
         self.steps_per_epoch = self.train_generator.samples // self.train_generator.batch_size
         self.validation_steps = self.valid_generator.samples // self.valid_generator.batch_size
         
+        labels = self.train_generator.labels
+
+        class_weights = class_weight.compute_class_weight(
+            class_weight='balanced',
+            classes=np.unique(labels),
+            y=labels
+        )
+        class_weights_dict = dict(zip(np.unique(labels), class_weights))
+        
         self.model.fit(
             self.train_generator,
             epochs=self.config.params_epochs,
             steps_per_epoch=self.steps_per_epoch,
             validation_steps= self.validation_steps,
-            validation_data=self.valid_generator
+            validation_data=self.valid_generator,
+            class_weight=class_weights_dict,
         )
         
         self.save_model(path=self.config.trained_model_path,model=self.model)

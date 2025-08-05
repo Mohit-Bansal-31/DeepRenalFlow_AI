@@ -4,6 +4,7 @@ from zipfile import ZipFile
 import tensorflow as tf
 from pathlib import Path
 from DeepRenalFlow.entity.config_entity import PrepareBaseModelConfig
+tf.config.run_functions_eagerly(True)
 
 class PrepareBaseModel:
     def __init__(self, config: PrepareBaseModelConfig):
@@ -44,7 +45,8 @@ class PrepareBaseModel:
         full_model.compile(
             optimizer = tf.keras.optimizers.SGD(learning_rate = learning_rate),
             loss = tf.keras.losses.CategoricalCrossentropy(),
-            metrics = ["accuracy"]
+            metrics = ["accuracy"],
+            run_eagerly = True,
         )
         
         full_model.summary()

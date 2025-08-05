@@ -1,6 +1,9 @@
 from DeepRenalFlow.config.configuration import ConfigurationManager
 from DeepRenalFlow.components.model_evaluation_mlflow import Evaluation
 from DeepRenalFlow import logger
+import tensorflow as tf
+tf.config.run_functions_eagerly(True)
+
 
 
 STAGE_NAME = 'Model Evaluation Stage'

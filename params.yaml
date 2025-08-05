@@ -5,4 +5,4 @@ INCLUDE_TOP: FALSE  # Exclude the top layer for transfer learning
 EPOCHS: 200
 CLASSES: 4
 WEIGHTS: imagenet
-LEARNING_RATE: 0.005
+LEARNING_RATE: 0.0005

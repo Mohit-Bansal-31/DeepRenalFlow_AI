@@ -57,6 +57,7 @@ class Evaluation:
         
     def log_into_mlflow(self):
         mlflow.set_registry_uri(self.config.mlflow_uri)
+        mlflow.set_tracking_uri(self.config.mlflow_uri)
         tracking_url_type_store=urlparse(mlflow.get_tracking_uri()).scheme
         
         with mlflow.start_run():
@@ -66,6 +67,6 @@ class Evaluation:
             )
             
             if tracking_url_type_store != "file":
-                mlflow.keras.log_model(self.model,'model',registered_model_name="VGG16_CNN_Model")
+                mlflow.keras.log_model(self.model,'model.h5',registered_model_name="VGG16_CNN_Model.h5")
             else:
-                mlflow.keras.log_model(self.model,'model')
+                mlflow.keras.log_model(self.model,'model.h5')
