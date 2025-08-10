@@ -4,7 +4,7 @@ import mlflow
 import mlflow.keras
 from urllib.parse import urlparse
 from DeepRenalFlow.entity.config_entity import EvaluationConfig
-from DeepRenalFlow.utils.common import save_json
+from DeepRenalFlow.utils.common import save_json, create_directories
 
 
 class Evaluation:
@@ -47,26 +47,37 @@ class Evaluation:
         self._valid_generator()
         self.score = self.model.evaluate(self.valid_generator)
         self.save_score()
-        self.log_into_mlflow()
+        load_input = input("Do you want to save the model? (y/n): ").strip().lower()
+        self.save_model(load_input == 'y')
+        load_input = input("Do you want to log the model into ML Flows? (y/n): ").strip().lower()
+        self.log_into_mlflow(load_input == 'y')
         
         
     def save_score(self):
         scores = {"loss": self.score[0], "accuracy": self.score[1]}
         save_json(path=Path("scores.json"),data=scores)
         
-        
-    def log_into_mlflow(self):
-        mlflow.set_registry_uri(self.config.mlflow_uri)
-        mlflow.set_tracking_uri(self.config.mlflow_uri)
-        tracking_url_type_store=urlparse(mlflow.get_tracking_uri()).scheme
-        
-        with mlflow.start_run():
-            mlflow.log_params(self.config.all_params)
-            mlflow.log_metrics(
-                {'loss': self.score[0], 'accuracy':self.score[1]}
-            )
+    
+    def save_model(self, save: bool):
+        if save:
+            create_directories(["model"])
+            self.model.save("model/final_model.h5")
             
-            if tracking_url_type_store != "file":
-                mlflow.keras.log_model(self.model,'model.h5',registered_model_name="VGG16_CNN_Model.h5")
-            else:
-                mlflow.keras.log_model(self.model,'model.h5')
+        
+        
+    def log_into_mlflow(self, load: bool):
+        if load:
+            mlflow.set_registry_uri(self.config.mlflow_uri)
+            mlflow.set_tracking_uri(self.config.mlflow_uri)
+            tracking_url_type_store=urlparse(mlflow.get_tracking_uri()).scheme
+            
+            with mlflow.start_run():
+                mlflow.log_params(self.config.all_params)
+                mlflow.log_metrics(
+                    {'loss': self.score[0], 'accuracy':self.score[1]}
+                )
+                
+                if tracking_url_type_store != "file":
+                    mlflow.keras.log_model(self.model,'model.h5',registered_model_name="VGG16_CNN_Model.h5")
+                else:
+                    mlflow.keras.log_model(self.model,'model.h5')
