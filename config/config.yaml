@@ -20,5 +20,5 @@ training:
 
 
 evaluation:
-  path_of_model: artifacts\training\model_epoch_25.h5
+  path_of_model: artifacts\training\model_epoch_150.h5  # Performed the best
   training_data: artifacts\data_ingestion\CT-KIDNEY-DATASET-Normal-Cyst-Tumor-Stone
