@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="en" class="dark"> <!-- Default to dark mode -->
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DeepRenalFlowAI - Kidney CT Scan Classification</title>
+    
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <script>
+        // Set theme on initial load to prevent FOUC (Flash of Unstyled Content)
+        if (localStorage.theme === 'light' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: light)').matches)) {
+            document.documentElement.classList.remove('dark')
+        } else {
+            document.documentElement.classList.add('dark')
+        }
+    </script>
+
+    <style>
+        /* Custom styles for the application */
+        body {
+            font-family: 'Inter', sans-serif;
+            transition: background-color 0.5s ease;
+            overflow: hidden; /* Hide scrollbars */
+        }
+
+        /* Canvas Background */
+        #network-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+        }
+
+        /* Main container styling for both themes */
+        .main-container {
+            border: 1px solid;
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+        }
+
+        /* Light Theme Styles */
+        .light body { background-color: #f8f9fa; }
+        .light .main-container { 
+            background: rgba(255, 255, 255, 0.85); 
+            border-color: rgba(229, 231, 235, 1);
+            box-shadow: 0 10px 25px -5px rgb(0 0 0 / 0.05), 0 8px 10px -6px rgb(0 0 0 / 0.05);
+        }
+
+        /* Dark Theme Styles */
+        .dark body { background-color: #030712; }
+        .dark .main-container { background: rgba(17, 24, 39, 0.75); border-color: rgba(55, 65, 81, 0.5); }
+
+        /* Button Styles */
+        .btn { transition: all 0.3s ease; }
+        .btn-primary:disabled { cursor: not-allowed; opacity: 0.5; }
+        
+        /* Clickable Upload Box */
+        #image-pane { cursor: pointer; }
+
+        /* Neural network animation styles for PREDICTION LOADER */
+        .neural-network-loader .node { fill: #4f46e5; stroke: #a5b4fc; stroke-width: 2; }
+        .dark .neural-network-loader .node { stroke: #6366f1; }
+        .neural-network-loader .path { stroke: #6366f1; stroke-width: 1; animation: pulse 1.5s infinite ease-in-out; }
+        .dark .neural-network-loader .path { stroke: #818cf8; }
+
+        @keyframes pulse {
+            0%, 100% { stroke-dasharray: 1, 200; stroke-dashoffset: 0; stroke-width: 1; }
+            50% { stroke-dasharray: 100, 200; stroke-dashoffset: -50; stroke-width: 2; }
+        }
+    </style>
+</head>
+<body>
+    <canvas id="network-canvas"></canvas>
+    
+    <div class="min-h-screen flex items-center justify-center p-4 relative z-10">
+        <div class="main-container w-full max-w-4xl rounded-2xl p-6 md:p-8 relative">
+            
+            <!-- Theme Switcher -->
+            <button id="theme-toggle" class="absolute top-4 right-4 p-2 rounded-full text-slate-500 dark:text-indigo-300 hover:bg-slate-200 dark:hover:bg-gray-700 transition-colors duration-300">
+                <svg id="theme-toggle-dark-icon" class="hidden h-6 w-6" fill="currentColor" viewBox="0 0 20 20"><path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"></path></svg>
+                <svg id="theme-toggle-light-icon" class="hidden h-6 w-6" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" fill-rule="evenodd" clip-rule="evenodd"></path></svg>
+            </button>
+
+            <!-- Header Section -->
+            <header class="text-center mb-6 md:mb-8">
+                <h1 class="text-4xl md:text-5xl font-extrabold text-slate-900 dark:text-transparent dark:bg-clip-text dark:bg-gradient-to-r dark:from-indigo-300 dark:to-purple-400">
+                    DeepRenalFlowAI
+                </h1>
+                <p class="text-slate-600 dark:text-indigo-200 mt-2 text-lg">AI-Powered Kidney CT Scan Classification</p>
+            </header>
+
+            <!-- Main Content Area -->
+            <main class="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8 items-center">
+                
+                <!-- Left Pane: Image Upload and Preview -->
+                <div id="image-pane" class="w-full h-80 bg-slate-100 dark:bg-gray-900/50 rounded-xl flex items-center justify-center border-2 border-dashed border-slate-300 dark:border-gray-600 transition-all duration-300 hover:border-blue-500 dark:hover:border-indigo-400 hover:bg-slate-200/70 dark:hover:bg-gray-800/50">
+                    <div id="upload-prompt" class="text-center text-slate-500 dark:text-slate-400 pointer-events-none">
+                        <svg class="w-16 h-16 mx-auto mb-4 text-slate-400 dark:text-slate-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 16.5V9.75m0 0l-3.75 3.75M12 9.75l3.75 3.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                        <p class="font-semibold">Click here to upload a Scan</p>
+                        <p class="text-sm">or use the button</p>
+                    </div>
+                    <img id="image-preview" src="" alt="Uploaded CT Scan" class="hidden w-full h-full object-contain rounded-xl pointer-events-none"/>
+                </div>
+
+                <!-- Right Pane: Controls and Results -->
+                <div class="flex flex-col justify-center h-full space-y-6">
+                    
+                    <!-- Control Buttons -->
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <input type="file" id="file-input" accept="image/*" class="hidden">
+                        <button id="upload-button" class="btn w-full text-slate-700 dark:text-white font-bold py-3 px-4 rounded-lg flex items-center justify-center bg-slate-200 dark:bg-gray-700 hover:bg-slate-300/70 dark:hover:bg-gray-600 border border-slate-300 dark:border-gray-600">
+                            <svg class="w-5 h-5 mr-2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path d="M9.25 13.25a.75.75 0 001.5 0V4.636l2.955 3.129a.75.75 0 001.09-1.03l-4.25-4.5a.75.75 0 00-1.09 0l-4.25 4.5a.75.75 0 101.09 1.03L9.25 4.636v8.614z" /><path d="M3.5 12.75a.75.75 0 00-1.5 0v2.5A2.75 2.75 0 004.75 18h10.5A2.75 2.75 0 0018 15.25v-2.5a.75.75 0 00-1.5 0v2.5c0 .69-.56 1.25-1.25 1.25H4.75c-.69 0-1.25-.56-1.25-1.25v-2.5z" /></svg>
+                            Upload Image
+                        </button>
+                        <button id="predict-button" class="btn btn-primary w-full text-white font-bold py-3 px-4 rounded-lg flex items-center justify-center bg-blue-600 hover:bg-blue-700 dark:bg-indigo-500 dark:hover:bg-indigo-600" disabled>
+                            <svg class="w-5 h-5 mr-2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path d="M10 3.5a1.5 1.5 0 011.5 1.5v2.879a1.5 1.5 0 01-.44 1.06l-2.88 2.88a1.5 1.5 0 01-2.12 0l-2.88-2.88a1.5 1.5 0 01-.44-1.06V5A1.5 1.5 0 0110 3.5z" /><path d="M10 12.5a1.5 1.5 0 011.5 1.5v1.5a1.5 1.5 0 01-3 0v-1.5A1.5 1.5 0 0110 12.5z" /></svg>
+                            Predict
+                        </button>
+                    </div>
+
+                    <!-- Prediction Status/Result Area -->
+                    <div class="h-40 flex items-center justify-center">
+                        <div id="loader" class="hidden text-center">
+                            <svg class="neural-network-loader w-24 h-24 mx-auto" viewBox="0 0 100 100">
+                                <circle class="node" cx="10" cy="20" r="4"></circle><circle class="node" cx="10" cy="50" r="4"></circle><circle class="node" cx="10" cy="80" r="4"></circle>
+                                <circle class="node" cx="50" cy="20" r="4"></circle><circle class="node" cx="50" cy="50" r="4"></circle><circle class="node" cx="50" cy="80" r="4"></circle>
+                                <circle class="node" cx="90" cy="50" r="4"></circle>
+                                <path class="path" d="M10 20 L50 20" fill="none"></path><path class="path" d="M10 20 L50 50" fill="none"></path>
+                                <path class="path" d="M10 50 L50 50" fill="none"></path><path class="path" d="M10 80 L50 80" fill="none"></path>
+                                <path class="path" d="M50 20 L90 50" fill="none"></path><path class="path" d="M50 80 L90 50" fill="none"></path>
+                            </svg>
+                            <p class="mt-2 text-slate-600 dark:text-indigo-300 font-semibold animate-pulse">Analyzing Scan...</p>
+                        </div>
+
+                        <div id="result" class="hidden w-full">
+                            <div class="bg-white/60 dark:bg-gray-800/60 rounded-xl p-4 text-center shadow-lg border border-slate-200 dark:border-gray-700">
+                                <p class="text-sm font-medium text-slate-500 dark:text-indigo-300">PREDICTION</p>
+                                <p id="result-class" class="text-3xl font-bold my-1">Tumor</p>
+                                <div class="w-full bg-slate-200 dark:bg-gray-700 rounded-full h-2.5 mt-2">
+                                    <div id="result-confidence-bar" class="h-2.5 rounded-full" style="width: 95%"></div>
+                                </div>
+                                <p id="result-confidence-text" class="text-sm text-slate-500 dark:text-indigo-300 mt-1">95.3% Confidence</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <script>
+        // --- DOM Element References ---
+        const fileInput = document.getElementById('file-input');
+        const uploadButton = document.getElementById('upload-button');
+        const predictButton = document.getElementById('predict-button');
+        const imagePane = document.getElementById('image-pane');
+        const imagePreview = document.getElementById('image-preview');
+        const uploadPrompt = document.getElementById('upload-prompt');
+        const loader = document.getElementById('loader');
+        const result = document.getElementById('result');
+        const resultClass = document.getElementById('result-class');
+        const resultConfidenceBar = document.getElementById('result-confidence-bar');
+        const resultConfidenceText = document.getElementById('result-confidence-text');
+        
+        // --- Theme Switcher Elements ---
+        const themeToggleBtn = document.getElementById('theme-toggle');
+        const themeToggleDarkIcon = document.getElementById('theme-toggle-dark-icon');
+        const themeToggleLightIcon = document.getElementById('theme-toggle-light-icon');
+        
+        // --- State ---
+        let base64Image = "";
+
+        // --- Event Listeners ---
+        uploadButton.addEventListener('click', () => fileInput.click());
+        imagePane.addEventListener('click', () => fileInput.click()); // Clickable upload box
+
+        fileInput.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    // Display the image
+                    imagePreview.src = e.target.result;
+                    imagePreview.classList.remove('hidden');
+                    uploadPrompt.classList.add('hidden');
+                    imagePane.classList.remove('border-dashed');
+                    
+                    // Store the base64 string without the data URL prefix
+                    base64Image = e.target.result.split(',')[1];
+                };
+                reader.readAsDataURL(file);
+                predictButton.disabled = false;
+                result.classList.add('hidden');
+                loader.classList.add('hidden');
+            }
+        });
+
+        predictButton.addEventListener('click', async () => {
+            if (!base64Image) {
+                alert("Please upload an image first.");
+                return;
+            }
+
+            predictButton.disabled = true;
+            result.classList.add('hidden');
+            loader.classList.remove('hidden');
+
+            try {
+                // Make a POST request to the Flask backend
+                const response = await fetch('/predict', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ image: base64Image }),
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const prediction = await response.json();
+
+                // Update the UI with the real prediction data
+                resultClass.textContent = prediction.predicted_class;
+                const confidence = parseFloat(prediction.confidence).toFixed(1);
+                resultConfidenceBar.style.width = `${confidence}%`;
+                resultConfidenceText.textContent = `${confidence}% Confidence`;
+                
+                updateResultColor(prediction.predicted_class);
+                
+            } catch (error) {
+                console.error("Prediction error:", error);
+                // Display an error message to the user
+                resultClass.textContent = "Error";
+                resultConfidenceText.textContent = "Could not get prediction.";
+                updateResultColor("Error");
+            } finally {
+                // Hide loader and show result
+                loader.classList.add('hidden');
+                result.classList.remove('hidden');
+                predictButton.disabled = false;
+            }
+        });
+
+        // --- Theme Switcher Logic ---
+        const setTheme = (isDark) => {
+            if (isDark) {
+                document.documentElement.classList.add('dark');
+                themeToggleLightIcon.classList.remove('hidden');
+                themeToggleDarkIcon.classList.add('hidden');
+                localStorage.theme = 'dark';
+            } else {
+                document.documentElement.classList.remove('dark');
+                themeToggleLightIcon.classList.add('hidden');
+                themeToggleDarkIcon.classList.remove('hidden');
+                localStorage.theme = 'light';
+            }
+            // Update canvas theme after DOM change
+            updateCanvasTheme();
+        };
+
+        themeToggleBtn.addEventListener('click', () => {
+            setTheme(!document.documentElement.classList.contains('dark'));
+        });
+
+        // --- Helper Functions ---
+        function updateResultColor(predictedClass) {
+            let color = 'gray'; // Default for Error
+            if (predictedClass === 'Normal') color = 'green';
+            else if (predictedClass === 'Cyst') color = 'sky';
+            else if (predictedClass === 'Tumor' || predictedClass === 'Stone') color = 'amber';
+            
+            // Set classes for both light and dark themes simultaneously using Tailwind's dark: prefix
+            resultClass.className = `text-3xl font-bold my-1 text-${color}-700 dark:text-${color}-400`;
+            resultConfidenceBar.className = `h-2.5 rounded-full bg-${color}-400 dark:bg-${color}-500`;
+        }
+        
+        // --- Neural Network Canvas Animation ---
+        const canvas = document.getElementById('network-canvas');
+        const ctx = canvas.getContext('2d');
+        let particles = [];
+        let animationFrameId;
+
+        const themeColors = {
+            dark: {
+                bg: '#030712',
+                particle: 'rgba(99, 102, 241, 0.9)',
+                line: 'rgba(79, 70, 229, 0.4)'
+            },
+            light: {
+                bg: '#f8f9fa',
+                particle: 'rgba(30, 64, 175, 0.6)', // Professional blue
+                line: 'rgba(147, 197, 253, 0.4)' // Lighter blue
+            }
+        };
+        let currentTheme = 'dark';
+
+        function updateCanvasTheme() {
+            currentTheme = document.documentElement.classList.contains('dark') ? 'dark' : 'light';
+            canvas.style.backgroundColor = themeColors[currentTheme].bg;
+        }
+
+        class Particle {
+            constructor(x, y, vx, vy, radius) {
+                this.x = x;
+                this.y = y;
+                this.vx = vx;
+                this.vy = vy;
+                this.radius = radius;
+            }
+
+            draw() {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fillStyle = themeColors[currentTheme].particle;
+                ctx.fill();
+            }
+
+            update() {
+                this.x += this.vx;
+                this.y += this.vy;
+
+                if (this.x < 0 || this.x > canvas.width) this.vx *= -1;
+                if (this.y < 0 || this.y > canvas.height) this.vy *= -1;
+            }
+        }
+
+        function initCanvas() {
+            if (animationFrameId) cancelAnimationFrame(animationFrameId);
+            
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            particles = [];
+            const particleCount = Math.floor((canvas.width * canvas.height) / 20000);
+            for (let i = 0; i < particleCount; i++) {
+                const radius = Math.random() * 1.5 + 1;
+                const x = Math.random() * canvas.width;
+                const y = Math.random() * canvas.height;
+                const vx = (Math.random() - 0.5) * 0.3;
+                const vy = (Math.random() - 0.5) * 0.3;
+                particles.push(new Particle(x, y, vx, vy, radius));
+            }
+            updateCanvasTheme();
+            animate();
+        }
+
+        function connectParticles() {
+            const maxDist = 150;
+            for (let i = 0; i < particles.length; i++) {
+                for (let j = i; j < particles.length; j++) {
+                    const dx = particles[i].x - particles[j].x;
+                    const dy = particles[i].y - particles[j].y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+
+                    if (dist < maxDist) {
+                        ctx.beginPath();
+                        ctx.strokeStyle = themeColors[currentTheme].line;
+                        ctx.lineWidth = 0.5 - dist / maxDist * 0.5;
+                        ctx.moveTo(particles[i].x, particles[i].y);
+                        ctx.lineTo(particles[j].x, particles[j].y);
+                        ctx.stroke();
+                    }
+                }
+            }
+        }
+
+        function animate() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            particles.forEach(p => {
+                p.update();
+                p.draw();
+            });
+            connectParticles();
+            animationFrameId = requestAnimationFrame(animate);
+        }
+
+        // Initial setup
+        window.addEventListener('load', initCanvas);
+        window.addEventListener('resize', initCanvas);
+        
+        // Initial theme setup for canvas
+        setTheme(document.documentElement.classList.contains('dark'));
+
+    </script>
+
+</body>
+</html>
